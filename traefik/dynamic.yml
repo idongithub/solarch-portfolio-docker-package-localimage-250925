@@ -1,0 +1,103 @@
+# Dynamic Traefik Configuration for Kamal Singh Portfolio
+# DNS-based routing rules
+
+http:
+  routers:
+    # Frontend Router - Main Portfolio
+    portfolio-frontend:
+      rule: "Host(`portfolio.archsol.co.uk`) || Host(`kamal.archsol.co.uk`)"
+      service: portfolio-frontend-service
+      tls:
+        certResolver: letsencrypt
+      middlewares:
+        - security-headers
+        - compress
+
+    # Backend API Router
+    portfolio-api:
+      rule: "Host(`portfolio.archsol.co.uk`) && PathPrefix(`/api`)"
+      service: portfolio-backend-service
+      tls:
+        certResolver: letsencrypt
+      middlewares:
+        - security-headers
+        - cors-headers
+
+    # Grafana Router (Optional - for monitoring access)
+    portfolio-grafana:
+      rule: "Host(`monitoring.archsol.co.uk`)"
+      service: portfolio-grafana-service
+      tls:
+        certResolver: letsencrypt
+      middlewares:
+        - security-headers
+        - auth-basic
+
+  services:
+    # Frontend Service (HTTP)
+    portfolio-frontend-service:
+      loadBalancer:
+        servers:
+          - url: "http://YOUR_SERVER_IP:3400"
+        healthCheck:
+          path: "/"
+          interval: "10s"
+          timeout: "3s"
+
+    # Backend API Service
+    portfolio-backend-service:
+      loadBalancer:
+        servers:
+          - url: "http://YOUR_SERVER_IP:3001"
+        healthCheck:
+          path: "/api/health"
+          interval: "10s"
+          timeout: "3s"
+
+    # Grafana Service (Optional)
+    portfolio-grafana-service:
+      loadBalancer:
+        servers:
+          - url: "http://YOUR_SERVER_IP:3030"
+
+  middlewares:
+    # Security Headers
+    security-headers:
+      headers:
+        customRequestHeaders:
+          X-Forwarded-Proto: "https"
+        customResponseHeaders:
+          X-Frame-Options: "SAMEORIGIN"
+          X-Content-Type-Options: "nosniff"
+          X-XSS-Protection: "1; mode=block"
+          Strict-Transport-Security: "max-age=31536000; includeSubDomains"
+
+    # CORS Headers for API
+    cors-headers:
+      headers:
+        accessControlAllowMethods:
+          - GET
+          - POST
+          - PUT
+          - DELETE
+          - OPTIONS
+        accessControlAllowHeaders:
+          - Content-Type
+          - Authorization
+          - X-Requested-With
+        accessControlAllowOriginList:
+          - "https://portfolio.archsol.co.uk"
+          - "https://kamal.archsol.co.uk"
+        accessControlMaxAge: 100
+        addVaryHeader: true
+
+    # Compression
+    compress:
+      excludedContentTypes:
+        - text/event-stream
+
+    # Basic Auth for Grafana (Optional)
+    auth-basic:
+      basicAuth:
+        users:
+          - "admin:$2y$10$..."  # Generate with: htpasswd -n admin

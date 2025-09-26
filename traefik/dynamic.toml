@@ -1,0 +1,97 @@
+# Dynamic Traefik Configuration for Kamal Singh Portfolio
+# DNS-based routing rules for architecturesolutions.co.uk domain
+
+[http]
+  [http.routers]
+    # Frontend Router - Main Portfolio
+    [http.routers.portfolio-frontend]
+      rule = "Host(`portfolio.architecturesolutions.co.uk`)"
+      service = "portfolio-frontend-service"
+      # SSL termination handled by your existing wildcard certificate
+      [http.routers.portfolio-frontend.tls]
+      middlewares = ["security-headers", "compress"]
+
+    # Backend API Router
+    [http.routers.portfolio-api]
+      rule = "Host(`portfolio.architecturesolutions.co.uk`) && PathPrefix(`/api`)"
+      service = "portfolio-backend-service"
+      priority = 100
+      [http.routers.portfolio-api.tls]
+      middlewares = ["security-headers", "cors-headers"]
+
+    # Backend Documentation Router (Swagger UI)
+    [http.routers.portfolio-docs]
+      rule = "Host(`portfolio.architecturesolutions.co.uk`) && (Path(`/docs`) || Path(`/openapi.json`) || PathPrefix(`/docs/`) || PathPrefix(`/redoc`))"
+      service = "portfolio-backend-service"
+      priority = 200
+      [http.routers.portfolio-docs.tls]
+      middlewares = ["security-headers"]
+
+    # Optional: Grafana Router for monitoring access
+    [http.routers.portfolio-grafana]
+      rule = "Host(`monitoring.architecturesolutions.co.uk`)"
+      service = "portfolio-grafana-service"
+      [http.routers.portfolio-grafana.tls]
+      middlewares = ["security-headers", "auth-basic"]
+
+  [http.services]
+    # Frontend Service (HTTP only - SSL terminated at Traefik)
+    [http.services.portfolio-frontend-service]
+      [http.services.portfolio-frontend-service.loadBalancer]
+        [[http.services.portfolio-frontend-service.loadBalancer.servers]]
+          url = "http://192.168.86.75:3400"
+        [http.services.portfolio-frontend-service.loadBalancer.healthCheck]
+          path = "/"
+          interval = "10s"
+          timeout = "3s"
+
+    # Backend API Service
+    [http.services.portfolio-backend-service]
+      [http.services.portfolio-backend-service.loadBalancer]
+        [[http.services.portfolio-backend-service.loadBalancer.servers]]
+          url = "http://192.168.86.75:8001"
+        [http.services.portfolio-backend-service.loadBalancer.healthCheck]
+          path = "/api/health"
+          interval = "10s"
+          timeout = "3s"
+
+    # Optional: Grafana Service
+    [http.services.portfolio-grafana-service]
+      [http.services.portfolio-grafana-service.loadBalancer]
+        [[http.services.portfolio-grafana-service.loadBalancer.servers]]
+          url = "http://192.168.86.75:3030"
+
+  [http.middlewares]
+    # Security Headers
+    [http.middlewares.security-headers]
+      [http.middlewares.security-headers.headers]
+        [http.middlewares.security-headers.headers.customRequestHeaders]
+          X-Forwarded-Proto = "https"
+        [http.middlewares.security-headers.headers.customResponseHeaders]
+          X-Frame-Options = "SAMEORIGIN"
+          X-Content-Type-Options = "nosniff"
+          X-XSS-Protection = "1; mode=block"
+          Strict-Transport-Security = "max-age=31536000; includeSubDomains"
+
+    # CORS Headers for API
+    [http.middlewares.cors-headers]
+      [http.middlewares.cors-headers.headers]
+        accessControlAllowMethods = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+        accessControlAllowHeaders = ["Content-Type", "Authorization", "X-Requested-With"]
+        accessControlAllowOriginList = [
+          "https://portfolio.architecturesolutions.co.uk"
+        ]
+        accessControlMaxAge = 100
+        addVaryHeader = true
+
+    # Compression
+    [http.middlewares.compress]
+      [http.middlewares.compress.compress]
+        excludedContentTypes = ["text/event-stream"]
+
+    # Basic Auth for Grafana (Optional)
+    [http.middlewares.auth-basic]
+      [http.middlewares.auth-basic.basicAuth]
+        users = [
+          "admin:$2y$10$..."  # Generate with: htpasswd -n admin
+        ]

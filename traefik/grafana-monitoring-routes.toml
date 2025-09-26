@@ -1,0 +1,39 @@
+# Grafana Monitoring Routes for architecturesolutions.co.uk
+# Copy these sections to YOUR existing dynamic.toml file
+
+# Grafana Monitoring Access
+[http.routers.monitoring-grafana]
+  rule = "Host(`monitoring.architecturesolutions.co.uk`)"
+  service = "monitoring-grafana-service"
+  [http.routers.monitoring-grafana.tls]
+  middlewares = ["security-headers", "auth-basic"]
+
+# Optional: Prometheus Access  
+[http.routers.monitoring-prometheus]
+  rule = "Host(`prometheus.architecturesolutions.co.uk`)"
+  service = "monitoring-prometheus-service"
+  [http.routers.monitoring-prometheus.tls]
+  middlewares = ["security-headers", "auth-basic"]
+
+# Services for Monitoring
+[http.services.monitoring-grafana-service.loadBalancer]
+  [[http.services.monitoring-grafana-service.loadBalancer.servers]]
+    url = "http://192.168.86.75:3030"
+  [http.services.monitoring-grafana-service.loadBalancer.healthCheck]
+    path = "/login"
+    interval = "10s"
+    timeout = "3s"
+
+[http.services.monitoring-prometheus-service.loadBalancer]
+  [[http.services.monitoring-prometheus-service.loadBalancer.servers]]
+    url = "http://192.168.86.75:3091"
+  [http.services.monitoring-prometheus-service.loadBalancer.healthCheck]
+    path = "/-/healthy"
+    interval = "10s"
+    timeout = "3s"
+
+# Basic Auth Middleware (Optional - for security)
+[http.middlewares.auth-basic.basicAuth]
+  users = [
+    "admin:$2y$10$..."  # Generate with: htpasswd -n admin
+  ]

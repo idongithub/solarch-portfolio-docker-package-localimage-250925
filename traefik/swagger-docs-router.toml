@@ -1,0 +1,23 @@
+# Swagger UI Documentation Router for Traefik
+# Copy this to your Traefik dynamic.toml
+
+# Swagger UI Router - Public API documentation access
+[http.routers.portfolio-docs]
+  rule = "Host(`portfolio.architecturesolutions.co.uk`) && PathPrefix(`/docs`)"
+  service = "portfolio-backend"  # Same backend service as API
+  priority = 150  # Higher than frontend, lower than API
+  [http.routers.portfolio-docs.tls]
+  middlewares = ["swagger-headers", "cors-headers"]
+
+# Swagger UI specific middleware for proper headers
+[http.middlewares.swagger-headers.headers.customRequestHeaders]
+  Accept = "application/json,text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+  Content-Type = "application/json"
+  
+[http.middlewares.swagger-headers.headers.customResponseHeaders]
+  Access-Control-Allow-Origin = "*"
+  Access-Control-Allow-Methods = "GET,POST,OPTIONS"
+  Cache-Control = "no-cache, no-store, must-revalidate"
+
+# Note: Uses the same backend service as API calls
+# Backend service should already be defined in your main configuration
