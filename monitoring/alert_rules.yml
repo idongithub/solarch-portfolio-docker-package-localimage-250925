@@ -1,0 +1,192 @@
+# Prometheus Alert Rules for ARCHSOL IT Portfolio
+# Phase 3: Production Alerting
+
+groups:
+  - name: portfolio.rules
+    rules:
+      # High-Level Service Alerts
+      - alert: PortfolioSiteDown
+        expr: probe_success{job="blackbox",instance="https://portfolio.archsol.co.uk"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: frontend
+        annotations:
+          summary: "Portfolio website is down"
+          description: "The main portfolio website has been down for more than 1 minute."
+
+      - alert: PortfolioAPIDown
+        expr: probe_success{job="blackbox",instance="https://portfolio.archsol.co.uk/api/health"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: backend
+        annotations:
+          summary: "Portfolio API is down"
+          description: "The portfolio API health check has been failing for more than 1 minute."
+
+      # Performance Alerts
+      - alert: HighResponseTime
+        expr: probe_duration_seconds{job="blackbox"} > 2
+        for: 5m
+        labels:
+          severity: warning
+          service: performance
+        annotations:
+          summary: "High response time detected"
+          description: "Response time for {{ $labels.instance }} is {{ $value }}s, which is above the 2s threshold."
+
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: critical
+          service: backend
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is {{ $value | humanizePercentage }} for the last 5 minutes."
+
+      # Resource Alerts
+      - alert: HighCPUUsage
+        expr: 100 - (avg by(instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 5m
+        labels:
+          severity: warning
+          service: infrastructure
+        annotations:
+          summary: "High CPU usage"
+          description: "CPU usage is above 80% on {{ $labels.instance }} for more than 5 minutes."
+
+      - alert: HighMemoryUsage
+        expr: (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+          service: infrastructure
+        annotations:
+          summary: "High memory usage"
+          description: "Memory usage is above 85% on {{ $labels.instance }} for more than 5 minutes."
+
+      - alert: LowDiskSpace
+        expr: (node_filesystem_size_bytes{fstype!="tmpfs"} - node_filesystem_free_bytes{fstype!="tmpfs"}) / node_filesystem_size_bytes{fstype!="tmpfs"} * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+          service: infrastructure
+        annotations:
+          summary: "Low disk space"
+          description: "Disk usage is above 85% on {{ $labels.instance }} mount {{ $labels.mountpoint }}."
+
+      # Database Alerts
+      - alert: MongoDBDown
+        expr: mongodb_up == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: database
+        annotations:
+          summary: "MongoDB is down"
+          description: "MongoDB instance has been down for more than 1 minute."
+
+      - alert: MongoDBHighConnections
+        expr: mongodb_connections{state="current"} / mongodb_connections{state="available"} > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          service: database
+        annotations:
+          summary: "MongoDB high connection usage"
+          description: "MongoDB connection usage is above 80% for more than 5 minutes."
+
+      - alert: MongoDBReplicationLag
+        expr: mongodb_replset_member_optime_date{state="PRIMARY"} - mongodb_replset_member_optime_date{state="SECONDARY"} > 10
+        for: 2m
+        labels:
+          severity: warning
+          service: database
+        annotations:
+          summary: "MongoDB replication lag"
+          description: "MongoDB replication lag is {{ $value }}s, which is above the 10s threshold."
+
+      # Application-Specific Alerts
+      - alert: HighContactFormFailureRate
+        expr: rate(contact_form_submissions_total{result="failed"}[5m]) / rate(contact_form_submissions_total[5m]) > 0.2
+        for: 3m
+        labels:
+          severity: warning
+          service: application
+        annotations:
+          summary: "High contact form failure rate"
+          description: "Contact form failure rate is {{ $value | humanizePercentage }} for the last 5 minutes."
+
+      - alert: EmailServiceDown
+        expr: email_service_health == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: email
+        annotations:
+          summary: "Email service is down"
+          description: "The email service health check has been failing for more than 1 minute."
+
+      - alert: HighEmailSendLatency
+        expr: histogram_quantile(0.95, rate(email_send_duration_seconds_bucket[5m])) > 30
+        for: 5m
+        labels:
+          severity: warning
+          service: email
+        annotations:
+          summary: "High email send latency"
+          description: "95th percentile email send latency is {{ $value }}s, above the 30s threshold."
+
+      # Security Alerts
+      - alert: HighRateLimitHits
+        expr: rate(rate_limit_hits_total[5m]) > 10
+        for: 2m
+        labels:
+          severity: warning
+          service: security
+        annotations:
+          summary: "High rate limit hits"
+          description: "Rate limit is being hit {{ $value }} times per second, indicating potential abuse."
+
+      - alert: SuspiciousUserAgent
+        expr: increase(http_requests_total{user_agent=~".*bot.*|.*crawler.*|.*scanner.*"}[1h]) > 1000
+        for: 0m
+        labels:
+          severity: info
+          service: security
+        annotations:
+          summary: "Suspicious user agent activity"
+          description: "High number of requests from bot-like user agents: {{ $value }} in the last hour."
+
+      # Container Alerts
+      - alert: ContainerDown
+        expr: absent(container_last_seen{name=~"portfolio-.*"})
+        for: 1m
+        labels:
+          severity: critical
+          service: infrastructure
+        annotations:
+          summary: "Container is down"
+          description: "Container {{ $labels.name }} has been down for more than 1 minute."
+
+      - alert: ContainerHighMemoryUsage
+        expr: container_memory_usage_bytes{name=~"portfolio-.*"} / container_spec_memory_limit_bytes > 0.9
+        for: 5m
+        labels:
+          severity: warning
+          service: infrastructure
+        annotations:
+          summary: "Container high memory usage"
+          description: "Container {{ $labels.name }} memory usage is above 90% for more than 5 minutes."
+
+      - alert: ContainerRestartLoop
+        expr: increase(container_start_time_seconds{name=~"portfolio-.*"}[1h]) > 3
+        for: 0m
+        labels:
+          severity: warning
+          service: infrastructure
+        annotations:
+          summary: "Container restart loop"
+          description: "Container {{ $labels.name }} has restarted {{ $value }} times in the last hour."

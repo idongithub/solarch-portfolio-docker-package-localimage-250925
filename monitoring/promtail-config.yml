@@ -1,0 +1,38 @@
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+    tenant_id: portfolio
+
+scrape_configs:
+  # Application logs from mounted directory
+  - job_name: application-logs
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: portfolio-app
+          __path__: /var/log/**/*.log
+
+  # Container logs from Docker (portfolio containers only)
+  - job_name: portfolio-containers
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 10s
+        filters:
+          - name: name
+            values: ["portfolio-*"]
+    relabel_configs:
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/portfolio-(.*)' 
+        target_label: 'container'
+        replacement: '${1}'
+      - source_labels: ['__meta_docker_container_log_stream']
+        target_label: 'stream'
+      - target_label: 'job'
+        replacement: 'portfolio'
