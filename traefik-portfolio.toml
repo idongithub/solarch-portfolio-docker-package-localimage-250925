@@ -1,0 +1,42 @@
+# Traefik Configuration for Portfolio Service
+# Add this to your existing traefik.toml or include it
+
+[global]
+  checkNewVersion = false
+  sendAnonymousUsage = false
+
+[log]
+  level = "INFO"
+
+[api]
+  dashboard = true
+  insecure = true
+
+[entryPoints]
+  [entryPoints.web]
+    address = ":80"
+  [entryPoints.websecure]
+    address = ":443"
+
+[providers]
+  [providers.docker]
+    endpoint = "unix:///var/run/docker.sock"
+    exposedByDefault = false
+    network = "traefik"
+
+# Certificate resolver for Let's Encrypt (adjust for your setup)
+[certificatesResolvers]
+  [certificatesResolvers.letsencrypt]
+    [certificatesResolvers.letsencrypt.acme]
+      email = "admin@architecturesolutions.co.uk"  # Replace with your email
+      storage = "acme.json"
+      [certificatesResolvers.letsencrypt.acme.httpChallenge]
+        entryPoint = "web"
+
+# Optional: Redirect HTTP to HTTPS globally
+[http]
+  [http.middlewares]
+    [http.middlewares.redirect-to-https]
+      [http.middlewares.redirect-to-https.redirectScheme]
+        scheme = "https"
+        permanent = true

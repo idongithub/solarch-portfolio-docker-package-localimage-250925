@@ -1,0 +1,172 @@
+# Docker Stack configuration for Kamal Singh Portfolio
+# For Docker Swarm deployment (production orchestration)
+
+version: '3.8'
+
+services:
+  # MongoDB Database
+  mongodb:
+    image: mongo:6.0
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
+      MONGO_INITDB_DATABASE: ${DB_NAME}
+    volumes:
+      - mongodb_data:/data/db
+      - mongodb_config:/data/configdb
+    networks:
+      - portfolio_network
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Backend API Service
+  backend:
+    image: portfolio_backend:latest
+    deploy:
+      replicas: 2
+      placement:
+        max_replicas_per_node: 1
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+    environment:
+      MONGO_URL: mongodb://${MONGO_ROOT_USERNAME}:${MONGO_ROOT_PASSWORD}@mongodb:27017/${DB_NAME}?authSource=admin
+      DB_NAME: ${DB_NAME}
+      HOST: 0.0.0.0
+      PORT: 8001
+      ENVIRONMENT: production
+      DEBUG: "False"
+      SMTP_SERVER: ${SMTP_SERVER}
+      SMTP_PORT: ${SMTP_PORT}
+      SMTP_USERNAME: ${SMTP_USERNAME}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+      SMTP_USE_TLS: ${SMTP_USE_TLS}
+      FROM_EMAIL: ${FROM_EMAIL}
+      TO_EMAIL: ${TO_EMAIL}
+      EMAIL_RATE_LIMIT_WINDOW: ${EMAIL_RATE_LIMIT_WINDOW}
+      EMAIL_RATE_LIMIT_MAX: ${EMAIL_RATE_LIMIT_MAX}
+      SECRET_KEY: ${SECRET_KEY}
+      ADMIN_TOKEN: ${ADMIN_TOKEN}
+      CORS_ORIGINS: ${CORS_ORIGINS}
+      WEBSITE_URL: ${WEBSITE_URL}
+    networks:
+      - portfolio_network
+    depends_on:
+      - mongodb
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # Frontend React Application
+  frontend:
+    image: portfolio_frontend:latest
+    deploy:
+      replicas: 2
+      placement:
+        max_replicas_per_node: 1
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      REACT_APP_BACKEND_URL: ${REACT_APP_BACKEND_URL}
+    networks:
+      - portfolio_network
+    depends_on:
+      - backend
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # Nginx Load Balancer
+  nginx:
+    image: nginx:alpine
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 128M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
+      restart_policy:
+        condition: on-failure
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    networks:
+      - portfolio_network
+    depends_on:
+      - frontend
+      - backend
+
+# Docker Volumes
+volumes:
+  mongodb_data:
+    driver: local
+  mongodb_config:
+    driver: local
+
+# Docker Networks
+networks:
+  portfolio_network:
+    driver: overlay
+    attachable: true

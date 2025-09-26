@@ -1,0 +1,8 @@
+# Docker Compose Override - Excludes Backup Service
+# This file removes the backup service from deployment
+# Usage with deploy script: --skip-backup flag will use this automatically
+
+version: '3.3'
+
+# Empty services section - this effectively removes the backup service
+# when used as an override file

@@ -1,0 +1,313 @@
+# Phase 3: Production Docker Compose Configuration
+# Optimized for production deployment with monitoring and security
+
+version: '3.3'
+
+services:
+  # Frontend HTTP Service
+  frontend-http:
+    build:
+      context: .
+      dockerfile: Dockerfile.npm.optimized
+      args:
+        REACT_APP_BACKEND_URL: ${REACT_APP_BACKEND_URL:-http://localhost:8001}
+        REACT_APP_KONG_HOST: ${REACT_APP_KONG_HOST:-192.168.86.75}
+        REACT_APP_KONG_PORT: ${REACT_APP_KONG_PORT:-8443}
+        REACT_APP_BACKEND_URL_HTTP: ${REACT_APP_BACKEND_URL_HTTP:-http://192.168.86.75:3001}
+        REACT_APP_RECAPTCHA_SITE_KEY: ${REACT_APP_RECAPTCHA_SITE_KEY:-6LcgftMrAAAAAPJRuWA4mQgstPWYoIXoPM4PBjMM}
+    container_name: portfolio-frontend-http
+    ports:
+      - "${HTTP_PORT:-8080}:80"
+    networks:
+      - portfolio-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    # Traefik labels removed - external Traefik will reach via host ports
+
+  # Frontend HTTPS Service
+  frontend-https:
+    build:
+      context: .
+      dockerfile: Dockerfile.https.optimized
+      args:
+        REACT_APP_BACKEND_URL: ${REACT_APP_BACKEND_URL:-http://localhost:8001}
+        REACT_APP_KONG_HOST: ${REACT_APP_KONG_HOST:-192.168.86.75}
+        REACT_APP_KONG_PORT: ${REACT_APP_KONG_PORT:-8443}
+        REACT_APP_BACKEND_URL_HTTP: ${REACT_APP_BACKEND_URL_HTTP:-http://192.168.86.75:3001}
+        REACT_APP_RECAPTCHA_SITE_KEY: ${REACT_APP_RECAPTCHA_SITE_KEY:-6LcgftMrAAAAAPJRuWA4mQgstPWYoIXoPM4PBjMM}
+    container_name: portfolio-frontend-https
+    ports:
+      - "${HTTPS_PORT:-8443}:443"
+      - "${HTTP_REDIRECT_PORT:-8080}:80"
+    volumes:
+      - ${SSL_CERT_PATH:-./ssl}:/etc/nginx/ssl:ro
+    networks:
+      - portfolio-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-check-certificate", "--no-verbose", "--tries=1", "--spider", "https://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    # Traefik labels removed - external Traefik will reach via host ports
+
+  # Backend API Service (Scaled)
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend.optimized
+    container_name: portfolio-backend
+    ports:
+      - "${BACKEND_PORT:-8001}:8001"
+    networks:
+      - portfolio-network
+    environment:
+      - MONGO_URL=mongodb://${MONGO_USERNAME:-admin}:${MONGO_PASSWORD}@mongodb:${MONGO_PORT:-27017}/portfolio?authSource=admin
+      - ENVIRONMENT=production
+      - LOG_LEVEL=INFO
+      - STRUCTURED_LOGGING=true
+      
+      # SMTP Configuration (use secrets in production)
+      - SMTP_SERVER=${SMTP_SERVER}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USE_TLS=${SMTP_USE_TLS:-true}
+      - SMTP_USE_SSL=${SMTP_USE_SSL:-false}
+      - SMTP_USERNAME=${SMTP_USERNAME}
+      - SMTP_PASSWORD=${SMTP_PASSWORD}
+      - FROM_EMAIL=${FROM_EMAIL}
+      - TO_EMAIL=${TO_EMAIL}
+      
+      # Security Configuration
+      - SECRET_KEY=${SECRET_KEY}
+      - CORS_ORIGINS=${CORS_ORIGINS:-https://portfolio.archsol.co.uk}
+      
+      # Rate Limiting
+      - EMAIL_RATE_LIMIT_WINDOW=3600
+      - EMAIL_RATE_LIMIT_MAX=10
+      - EMAIL_COOLDOWN_PERIOD=60
+      
+    volumes:
+      - ./logs/backend:/app/logs
+      - ./uploads:/app/uploads
+    depends_on:
+      - mongodb
+      - redis
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    # Traefik labels removed - external Traefik will reach via host ports
+
+  # MongoDB Primary
+  mongodb:
+    image: mongo:4.2
+    container_name: portfolio-mongodb
+    ports:
+      - "${MONGO_PORT:-27017}:27017"
+    networks:
+      - portfolio-network
+    volumes:
+      - ./data/mongodb:/data/db
+      - ./data/mongodb-config:/data/configdb
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_USERNAME:-admin}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_PASSWORD}
+      - MONGO_INITDB_DATABASE=portfolio
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mongo", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # MongoDB Admin Interface
+  mongo-express:
+    image: mongo-express:latest
+    container_name: portfolio-mongo-express
+    ports:
+      - "${MONGO_EXPRESS_PORT:-8081}:8081"
+    networks:
+      - portfolio-network
+    environment:
+      - ME_CONFIG_MONGODB_SERVER=mongodb
+      - ME_CONFIG_MONGODB_PORT=27017
+      - ME_CONFIG_MONGODB_ADMINUSERNAME=${MONGO_USERNAME:-admin}
+      - ME_CONFIG_MONGODB_ADMINPASSWORD=${MONGO_PASSWORD}
+      - ME_CONFIG_BASICAUTH_USERNAME=${MONGO_EXPRESS_USERNAME:-admin}
+      - ME_CONFIG_BASICAUTH_PASSWORD=${MONGO_EXPRESS_PASSWORD:-admin123}
+      - ME_CONFIG_MONGODB_ENABLE_ADMIN=true
+    depends_on:
+      - mongodb
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "sh", "-c", "nc -z localhost 8081 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  # Redis for Caching and Session Management
+  redis:
+    image: redis:7-alpine
+    container_name: portfolio-redis
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    networks:
+      - portfolio-network
+    volumes:
+      - ./data/redis:/data
+      - ./logs/redis:/var/log/redis
+    command: >
+      redis-server 
+      --appendonly yes 
+      --requirepass ${REDIS_PASSWORD}
+      --maxmemory 256mb 
+      --maxmemory-policy allkeys-lru
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Monitoring Stack
+
+  # Prometheus for Metrics
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: portfolio-prometheus
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    networks:
+      - portfolio-network
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./data/prometheus:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=15d'
+      - '--web.enable-lifecycle'
+    restart: unless-stopped
+
+  # Grafana for Visualization
+  grafana:
+    image: grafana/grafana:latest
+    container_name: portfolio-grafana
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    networks:
+      - portfolio-network
+    volumes:
+      - ./data/grafana:/var/lib/grafana
+      - ./monitoring/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources
+      - ./monitoring/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel
+      - GF_SECURITY_SECRET_KEY=${SECRET_KEY:-kamal-singh-grafana-secret-2024}
+      - GF_SECURITY_COOKIE_SECURE=false
+      - GF_SESSION_COOKIE_SECURE=false
+      - GF_AUTH_ANONYMOUS_ENABLED=false
+      - GF_LOG_LEVEL=warn
+    restart: unless-stopped
+
+  # Log Aggregation with Loki
+  loki:
+    image: grafana/loki:latest
+    container_name: portfolio-loki
+    ports:
+      - "${LOKI_PORT:-3100}:3100"
+    networks:
+      - portfolio-network
+    volumes:
+      - ./data/loki:/loki
+      - ./monitoring/loki-config.yml:/etc/loki/local-config.yaml:ro
+    command: -config.file=/etc/loki/local-config.yaml
+    restart: unless-stopped
+
+  # Promtail for Log Collection
+  promtail:
+    image: grafana/promtail:latest
+    container_name: portfolio-promtail
+    networks:
+      - portfolio-network
+    volumes:
+      - ./logs:/var/log:ro
+      - ./monitoring/promtail-config.yml:/etc/promtail/config.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    command: -config.file=/etc/promtail/config.yml
+    restart: unless-stopped
+    depends_on:
+      - loki
+
+  # Node Exporter for System Metrics
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: portfolio-node-exporter
+    expose:
+      - "9100"
+    networks:
+      - portfolio-network
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.rootfs=/rootfs'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    restart: unless-stopped
+
+  # Backup Service (Optional - use --skip-backup to exclude)
+  backup:
+    image: alpine:latest
+    container_name: portfolio-backup
+    networks:
+      - portfolio-network
+    volumes:
+      - ./data/mongodb:/backup/mongodb:ro
+      - ./backups:/backups
+      - ./scripts/backup.sh:/tmp/backup.sh:ro
+    environment:
+      - MONGO_HOST=mongodb
+      - MONGO_PORT=27017
+      - MONGO_USERNAME=${MONGO_USERNAME:-admin}
+      - MONGO_PASSWORD=${MONGO_PASSWORD}
+      - BACKUP_RETENTION_DAYS=${BACKUP_RETENTION_DAYS:-30}
+    command: |
+      sh -c "
+        apk add --no-cache mongodb-tools bash curl &&
+        cp /tmp/backup.sh /usr/local/bin/backup.sh &&
+        chmod +x /usr/local/bin/backup.sh &&
+        while true; do
+          /usr/local/bin/backup.sh
+          sleep 86400
+        done
+      "
+    restart: unless-stopped
+    depends_on:
+      - mongodb
+
+networks:
+  portfolio-network:
+    driver: bridge
+
+# All data now stored on host for persistence
+# Host directories:
+# - ./data/mongodb - MongoDB database files
+# - ./data/mongodb-config - MongoDB configuration
+# - ./data/redis - Redis data
+# - ./data/prometheus - Prometheus metrics data
+# - ./data/grafana - Grafana dashboards and settings
+# - ./data/loki - Loki log data
+# - ./backups - MongoDB backups

@@ -1,0 +1,81 @@
+version: '3.8'
+
+services:
+  # MongoDB Database
+  mongodb:
+    image: mongo:6.0
+    container_name: kamal-portfolio-mongo-https
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_DATABASE: portfolio_db
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - portfolio-network
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/portfolio_db --quiet
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # FastAPI Backend
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: kamal-portfolio-backend-https
+    restart: unless-stopped
+    environment:
+      - MONGO_URL=mongodb://mongodb:27017/portfolio_db
+      - SMTP_SERVER=${SMTP_SERVER:-smtp.gmail.com}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USE_TLS=${SMTP_USE_TLS:-true}
+      - SMTP_USERNAME=${SMTP_USERNAME:-}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - FROM_EMAIL=${FROM_EMAIL:-}
+      - TO_EMAIL=${TO_EMAIL:-kamal.singh@architecturesolutions.co.uk}
+      - EMAIL_RATE_LIMIT_WINDOW=${EMAIL_RATE_LIMIT_WINDOW:-3600}
+      - EMAIL_RATE_LIMIT_MAX=${EMAIL_RATE_LIMIT_MAX:-10}
+      - SECRET_KEY=${SECRET_KEY:-kamal-singh-portfolio-production-2024}
+      - CORS_ORIGINS=https://localhost:8443,https://localhost:443,https://localhost
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    networks:
+      - portfolio-network
+    healthcheck:
+      test: curl -f http://localhost:8001/api/ || exit 1
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # React Frontend with HTTPS
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.https
+    container_name: kamal-portfolio-frontend-https
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_HTTP_PORT:-8080}:80"
+      - "${FRONTEND_HTTPS_PORT:-8443}:443"
+    volumes:
+      # Mount custom SSL certificates if available
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - portfolio-network
+    healthcheck:
+      test: wget --no-check-certificate --no-verbose --tries=1 --spider https://localhost:443/health || exit 1
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  portfolio-network:
+    driver: bridge
+
+volumes:
+  mongodb_data:

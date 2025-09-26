@@ -1,0 +1,141 @@
+# Full-stack Docker Compose with MongoDB persistence and Mongo Express
+version: '3.8'
+
+services:
+  # Frontend HTTP Service
+  frontend-http:
+    build:
+      context: .
+      dockerfile: Dockerfile.npm.optimized
+    container_name: portfolio-frontend-http
+    ports:
+      - "${HTTP_PORT:-8080}:80"
+    networks:
+      - portfolio-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+
+  # Frontend HTTPS Service
+  frontend-https:
+    build:
+      context: .
+      dockerfile: Dockerfile.https.optimized
+    container_name: portfolio-frontend-https
+    ports:
+      - "${HTTPS_PORT:-8443}:443"
+      - "${HTTP_REDIRECT_PORT:-8080}:80"
+    networks:
+      - portfolio-network
+    volumes:
+      - ${SSL_CERT_PATH:-./ssl}:/etc/nginx/ssl:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-check-certificate", "--no-verbose", "--tries=1", "--spider", "https://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Backend API Service
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend.optimized
+    container_name: portfolio-backend
+    ports:
+      - "${BACKEND_PORT:-8001}:8001"
+    networks:
+      - portfolio-network
+    environment:
+      - MONGO_URL=mongodb://mongodb:27017/portfolio
+      - SMTP_SERVER=${SMTP_SERVER:-smtp.gmail.com}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USE_TLS=${SMTP_USE_TLS:-true}
+      - SMTP_USE_SSL=${SMTP_USE_SSL:-false}  
+      - SMTP_STARTTLS=${SMTP_STARTTLS:-true}
+      - SMTP_USERNAME=${SMTP_USERNAME}
+      - SMTP_PASSWORD=${SMTP_PASSWORD}
+      - FROM_EMAIL=${FROM_EMAIL}
+      - TO_EMAIL=${TO_EMAIL:-kamal.singh@architecturesolutions.co.uk}
+      - SECRET_KEY=${SECRET_KEY:-kamal-singh-portfolio-production-2024}
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000,http://localhost:8080,https://localhost:8443}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - ENVIRONMENT=${ENVIRONMENT:-production}
+    depends_on:
+      - mongodb
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/api/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # MongoDB Database Service
+  mongodb:
+    image: mongo:6.0-alpine
+    container_name: portfolio-mongodb
+    ports:
+      - "${MONGO_PORT:-27017}:27017"
+    networks:
+      - portfolio-network
+    volumes:
+      - ${MONGO_DATA_PATH:-./data/mongodb}:/data/db
+      - ${MONGO_CONFIG_PATH:-./data/mongodb-config}:/data/configdb
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_ROOT_USERNAME:-admin}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_ROOT_PASSWORD:-admin123}
+      - MONGO_INITDB_DATABASE=${MONGO_DATABASE:-portfolio}
+    restart: unless-stopped
+    command: --quiet --logpath /dev/null
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # Mongo Express Database Administration
+  mongo-express:
+    image: mongo-express:1.0.0-alpha
+    container_name: portfolio-mongo-express
+    ports:
+      - "${MONGO_EXPRESS_PORT:-8081}:8081"
+    networks:
+      - portfolio-network
+    environment:
+      - ME_CONFIG_MONGODB_SERVER=mongodb
+      - ME_CONFIG_MONGODB_PORT=27017
+      - ME_CONFIG_MONGODB_ADMINUSERNAME=${MONGO_ROOT_USERNAME:-admin}
+      - ME_CONFIG_MONGODB_ADMINPASSWORD=${MONGO_ROOT_PASSWORD:-admin123}
+      - ME_CONFIG_MONGODB_AUTH_DATABASE=admin
+      - ME_CONFIG_BASICAUTH_USERNAME=${MONGO_EXPRESS_USERNAME:-admin}
+      - ME_CONFIG_BASICAUTH_PASSWORD=${MONGO_EXPRESS_PASSWORD:-admin123}
+      - ME_CONFIG_MONGODB_ENABLE_ADMIN=true
+    depends_on:
+      - mongodb
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8081"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+networks:
+  portfolio-network:
+    driver: bridge
+    name: portfolio-network
+
+volumes:
+  mongodb-data:
+    name: portfolio-mongodb-data
+  mongodb-config:
+    name: portfolio-mongodb-config
+  ssl-certs:
+    name: portfolio-ssl-certs

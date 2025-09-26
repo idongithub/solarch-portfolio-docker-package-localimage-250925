@@ -1,0 +1,13 @@
+# Docker Compose Override for Optimized Backup Container
+# Use this if you want the optimized backup container with pre-built MongoDB tools
+# Usage: docker-compose -f docker-compose.production.yml -f docker-compose.backup-optimized.yml up -d
+
+version: '3.3'
+
+services:
+  backup:
+    build:
+      context: .
+      dockerfile: Dockerfile.backup
+    image: portfolio-backup:optimized
+    command: sh -c "while true; do /backup.sh; sleep 86400; done"
