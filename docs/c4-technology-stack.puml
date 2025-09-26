@@ -1,0 +1,186 @@
+@startuml TechnologyStack
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Context.puml
+
+title Technology Stack - Kamal Singh Portfolio
+
+package "Frontend Technologies" {
+    [React 19] as react
+    [React Router DOM] as router
+    [Tailwind CSS] as tailwind
+    [Shadcn/UI] as shadcn
+    [Axios] as axios
+    [Lucide React] as icons
+    [Node.js 18] as node
+    [Yarn] as yarn
+}
+
+package "Backend Technologies" {
+    [Python 3.11] as python
+    [FastAPI] as fastapi
+    [Uvicorn] as uvicorn
+    [Pydantic] as pydantic
+    [Motor] as motor
+    [Jinja2] as jinja
+    [smtplib] as smtp
+    [python-multipart] as multipart
+}
+
+package "Database Technologies" {
+    [MongoDB 6.0] as mongodb
+    [Motor AsyncIO] as motor_async
+    [Indexes] as indexes
+    [Document Validation] as validation
+}
+
+package "Infrastructure Technologies" {
+    [Docker] as docker
+    [Docker Compose] as compose
+    [Nginx] as nginx
+    [Supervisor] as supervisor
+    [Ubuntu 22.04] as ubuntu
+    [SSL/TLS] as ssl
+}
+
+package "DevOps & CI/CD" {
+    [GitHub Actions] as actions
+    [GitHub Container Registry] as ghcr
+    [DockerHub] as dockerhub
+    [Docker Buildx] as buildx
+    [Multi-platform Builds] as multiplatform
+}
+
+package "Email & Communication" {
+    [SMTP Protocols] as smtp_proto
+    [Gmail SMTP] as gmail
+    [Outlook SMTP] as outlook
+    [HTML Templates] as html_templates
+    [Auto-reply System] as autoreply
+}
+
+package "Security & Monitoring" {
+    [Rate Limiting] as ratelimit
+    [CORS Middleware] as cors
+    [Input Validation] as inputval
+    [Health Checks] as health
+    [SSL Certificates] as certs
+    [Security Headers] as headers
+}
+
+package "Development Tools" {
+    [ESLint] as eslint
+    [Prettier] as prettier
+    [Black] as black
+    [isort] as isort
+    [Git] as git
+    [VS Code] as vscode
+}
+
+' Frontend relationships
+react --> router : "Client-side routing"
+react --> tailwind : "Styling framework"
+react --> shadcn : "UI components"
+react --> axios : "HTTP client"
+react --> icons : "Icon system"
+node --> yarn : "Package management"
+
+' Backend relationships
+python --> fastapi : "Web framework"
+fastapi --> uvicorn : "ASGI server"
+fastapi --> pydantic : "Data validation"
+python --> motor : "MongoDB driver"
+python --> jinja : "Email templates"
+python --> smtp : "Email sending"
+
+' Database relationships
+mongodb --> motor_async : "Async operations"
+mongodb --> indexes : "Performance optimization"
+mongodb --> validation : "Schema validation"
+
+' Infrastructure relationships
+docker --> compose : "Multi-container orchestration"
+docker --> nginx : "Reverse proxy"
+docker --> supervisor : "Process management"
+ubuntu --> docker : "Container base OS"
+nginx --> ssl : "HTTPS termination"
+
+' DevOps relationships
+actions --> ghcr : "Image registry"
+actions --> dockerhub : "Public registry"
+docker --> buildx : "Multi-platform builds"
+buildx --> multiplatform : "ARM64 + AMD64"
+
+' Email relationships
+smtp_proto --> gmail : "Email provider"
+smtp_proto --> outlook : "Email provider"
+jinja --> html_templates : "Template rendering"
+smtp --> autoreply : "Automated responses"
+
+' Security relationships
+nginx --> ratelimit : "Request limiting"
+fastapi --> cors : "Cross-origin requests"
+pydantic --> inputval : "Data validation"
+docker --> health : "Container health"
+ssl --> certs : "Certificate management"
+nginx --> headers : "Security headers"
+
+note top of react
+**Frontend Stack:**
+• React 19 with Hooks & Context
+• TypeScript support ready
+• Responsive design (mobile-first)
+• Modern JavaScript (ES2022)
+• Component-based architecture
+• State management with hooks
+end note
+
+note top of python
+**Backend Stack:**
+• Python 3.11 with async/await
+• FastAPI for high performance
+• Automatic API documentation
+• Type hints throughout
+• Exception handling
+• Background task processing
+end note
+
+note top of mongodb
+**Database Features:**
+• Document-oriented storage
+• JSON-like documents (BSON)
+• Flexible schema with validation
+• Horizontal scaling ready
+• Rich query capabilities
+• GridFS for file storage
+end note
+
+note top of docker
+**Containerization:**
+• Multi-stage builds
+• Layer optimization
+• Security best practices
+• Health check integration
+• Volume persistence
+• Network isolation
+end note
+
+note bottom of actions
+**CI/CD Pipeline:**
+• Automated testing
+• Multi-platform builds
+• Automated deployments
+• Security scanning
+• Dependency updates
+• Release automation
+end note
+
+note bottom of smtp_proto
+**Email Integration:**
+• Professional HTML templates
+• Auto-reply functionality
+• Rate limiting (10/hour)
+• Multiple SMTP providers
+• Template personalization
+• Delivery confirmation
+end note
+
+@enduml

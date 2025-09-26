@@ -1,0 +1,74 @@
+@startuml C4_Deployment
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Deployment.puml
+
+title Deployment Diagram - Kamal Singh Portfolio System
+
+Deployment_Node(developer_machine, "Developer Machine", "Local Development") {
+    Deployment_Node(docker_desktop, "Docker Desktop", "Docker Engine") {
+        Container(dev_container, "Development Container", "All-in-One Image", "Complete portfolio stack for local development")
+    }
+}
+
+Deployment_Node(github_actions, "GitHub Actions", "CI/CD Pipeline") {
+    Deployment_Node(runner, "Ubuntu Runner", "GitHub Hosted") {
+        Container(build_process, "Build Process", "Docker Build", "Automated image building and publishing")
+    }
+}
+
+Deployment_Node(container_registry, "Container Registry", "Image Storage") {
+    Deployment_Node(ghcr, "GitHub Container Registry", "ghcr.io") {
+        Container(docker_image, "Portfolio Image", "kamal-singh-portfolio:latest", "Production-ready container image")
+    }
+    Deployment_Node(dockerhub, "DockerHub", "docker.io") {
+        Container(public_image, "Public Image", "username/portfolio:latest", "Publicly available image")
+    }
+}
+
+Deployment_Node(production_server, "Production Server", "Cloud Instance") {
+    Deployment_Node(docker_engine, "Docker Engine", "Container Runtime") {
+        Container(nginx_container, "Nginx Container", "Web Server", "Reverse proxy, SSL termination, static files")
+        Container(app_container, "Application Container", "FastAPI + React", "Backend API and frontend application")
+        Container(db_container, "Database Container", "MongoDB", "Document database with persistence")
+        
+        Container(single_container, "All-in-One Container", "Complete Stack", "Single container with all services")
+    }
+    
+    Deployment_Node(volume_storage, "Volume Storage", "Persistent Storage") {
+        Container(mongodb_data, "MongoDB Data", "Docker Volume", "Database persistence")
+        Container(ssl_certs, "SSL Certificates", "Docker Volume", "HTTPS certificates")
+        Container(app_logs, "Application Logs", "Docker Volume", "Log aggregation")
+    }
+}
+
+Deployment_Node(email_provider, "Email Provider", "External Service") {
+    Container(gmail_smtp, "Gmail SMTP", "smtp.gmail.com:587", "Email delivery service")
+    Container(outlook_smtp, "Outlook SMTP", "smtp.office365.com:587", "Alternative email service")
+}
+
+Deployment_Node(monitoring, "Monitoring & Health", "Observability") {
+    Container(health_checks, "Health Checks", "Container Health", "Service health monitoring")
+    Container(log_aggregation, "Log Aggregation", "Container Logs", "Centralized logging")
+}
+
+Rel(developer_machine, github_actions, "Git push", "HTTPS")
+Rel(github_actions, container_registry, "Push images", "Docker Registry API")
+Rel(container_registry, production_server, "Pull images", "Docker Registry API")
+
+Rel(nginx_container, app_container, "Proxy requests", "HTTP")
+Rel(app_container, db_container, "Database queries", "MongoDB Protocol")
+Rel(app_container, email_provider, "Send emails", "SMTP/TLS")
+
+Rel(single_container, email_provider, "Send emails", "SMTP/TLS")
+Rel(single_container, volume_storage, "Data persistence", "File System")
+
+Rel(production_server, monitoring, "Health data", "HTTP/Logs")
+
+note right of single_container : All-in-One Deployment:\n- Nginx (ports 80, 443)\n- React Frontend (internal:3000)\n- FastAPI Backend (internal:8001)\n- MongoDB (internal:27017)\n- Supervisor process manager\n- Self-signed SSL certificates
+
+note right of app_container : Multi-Container Deployment:\n- Separate concerns\n- Independent scaling\n- Service isolation\n- Resource optimization\n- Health check isolation
+
+note right of email_provider : SMTP Configuration:\n- Gmail: App password required\n- Outlook: Standard auth\n- Yahoo: App password required\n- Custom: Configurable\n- Rate limiting: 10 emails/hour
+
+note right of volume_storage : Persistence Features:\n- Database data survival\n- Log retention\n- SSL certificate storage\n- Backup capabilities\n- Cross-container sharing
+
+@enduml

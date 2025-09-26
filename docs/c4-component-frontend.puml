@@ -1,0 +1,68 @@
+@startuml C4_Component_Frontend
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+title Component Diagram - React Frontend Container
+
+Container(nginx, "Nginx", "Web Server", "Static file serving, routing")
+Container(backend, "FastAPI Backend", "Python API", "REST API endpoints")
+
+Container_Boundary(frontend, "React Frontend Container") {
+    Component(app_component, "App Component", "React Component", "Main application component with routing, layout management, theme provider")
+    
+    Component(layout_component, "Layout Component", "React Component", "Global layout with navigation, header, footer, responsive design")
+    
+    Component(pages, "Page Components", "React Components", "Individual pages: Home, About, Skills, Experience, Projects, Contact")
+    
+    Component(contact_form, "Contact Form", "React Component", "Enhanced contact form with project details, validation, loading states")
+    
+    Component(project_showcase, "Project Showcase", "React Component", "Featured projects display with filtering, details modal, technology tags")
+    
+    Component(hero_section, "Hero Section", "React Component", "Professional hero with introduction, call-to-action, responsive design")
+    
+    Component(contact_service, "Contact Service", "Axios Client", "API integration service for contact form, error handling, request interceptors")
+    
+    Component(ui_components, "UI Components", "Shadcn/UI", "Reusable UI components: buttons, forms, cards, modals, toasts")
+    
+    Component(hooks, "Custom Hooks", "React Hooks", "Custom hooks for state management, API calls, form handling")
+    
+    Component(routing, "React Router", "React Router DOM", "Client-side routing, navigation, route protection, URL management")
+    
+    Component(styling, "Styling System", "Tailwind CSS", "Utility-first CSS framework, responsive design, custom theme")
+    
+    Component(mock_data, "Mock Data", "JavaScript Objects", "Portfolio content: projects, experience, skills, testimonials")
+}
+
+Rel(nginx, app_component, "Serves React app", "Static files")
+Rel(app_component, routing, "Route management", "React")
+Rel(routing, pages, "Route components", "React")
+Rel(pages, layout_component, "Wraps pages", "React")
+
+Rel(layout_component, hero_section, "Renders hero", "React")
+Rel(pages, contact_form, "Contact page", "React")
+Rel(pages, project_showcase, "Projects page", "React")
+
+Rel(contact_form, contact_service, "Submit form", "HTTP")
+Rel(contact_form, ui_components, "Form elements", "React")
+Rel(contact_form, hooks, "Form state", "React Hooks")
+
+Rel(project_showcase, mock_data, "Project data", "JavaScript")
+Rel(project_showcase, ui_components, "Display components", "React")
+
+Rel(ui_components, styling, "Component styles", "CSS Classes")
+Rel(pages, styling, "Page styles", "CSS Classes")
+
+Rel(contact_service, backend, "API requests", "HTTP/JSON")
+
+note right of contact_form : Form Features:\n- Project type selection\n- Budget range options\n- Timeline selection\n- Real-time validation\n- Character counting\n- Loading states\n- Success/error feedback
+
+note right of project_showcase : Showcase Features:\n- 5 featured projects\n- Technology filtering\n- Category filtering\n- Project details modal\n- Business outcomes display\n- Professional imagery
+
+note right of contact_service : Service Features:\n- Axios HTTP client\n- Request/response interceptors\n- Error handling\n- Timeout management\n- Retry logic\n- Loading states
+
+note right of ui_components : Shadcn/UI Components:\n- Button variants\n- Form controls\n- Card layouts\n- Modal dialogs\n- Toast notifications\n- Loading spinners
+
+note right of styling : Tailwind Features:\n- Utility-first CSS\n- Responsive design\n- Custom color palette\n- Professional typography\n- Animation utilities\n- Dark mode support
+
+note right of mock_data : Portfolio Data:\n- 5 featured projects\n- 8 experience entries\n- 6 anonymous testimonials\n- Skills with ratings\n- Professional certifications
+
+@enduml

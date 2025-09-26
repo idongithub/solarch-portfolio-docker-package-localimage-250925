@@ -1,0 +1,27 @@
+@startuml C4_Context
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Context.puml
+
+title System Context Diagram - Kamal Singh Portfolio
+
+Person(visitor, "Portfolio Visitor", "Potential clients, recruiters, colleagues viewing Kamal Singh's professional portfolio")
+Person(kamal, "Kamal Singh", "IT Portfolio Architect - receives contact form submissions and manages portfolio content")
+
+System(portfolio, "Kamal Singh Portfolio System", "Professional portfolio website showcasing 26+ years of IT architecture expertise with contact form functionality")
+
+System_Ext(smtp_server, "SMTP Email Server", "External email service (Gmail, Outlook, Yahoo) for sending contact form notifications and auto-replies")
+System_Ext(browser, "Web Browser", "Chrome, Firefox, Safari, Edge - renders React frontend application")
+System_Ext(github, "GitHub Repository", "Source code repository with automated Docker image builds via GitHub Actions")
+System_Ext(docker_registry, "Docker Registry", "GitHub Container Registry or DockerHub for storing and distributing Docker images")
+
+Rel(visitor, portfolio, "Views portfolio, submits contact forms", "HTTPS/HTTP")
+Rel(kamal, portfolio, "Receives email notifications", "Email")
+Rel(portfolio, smtp_server, "Sends emails", "SMTP/TLS")
+Rel(portfolio, browser, "Serves web content", "HTTP/HTTPS")
+Rel(github, docker_registry, "Pushes built images", "Docker Registry API")
+Rel(docker_registry, portfolio, "Pulls Docker images", "Docker Registry API")
+
+note right of portfolio : Deployment Options:\n- Single Docker Container\n- Multi-container Docker Compose\n- Local installation scripts\n- Cloud deployment (AWS, GCP, Azure)
+
+note right of smtp_server : Supported Providers:\n- Gmail (recommended)\n- Outlook/Office365\n- Yahoo Mail\n- Custom SMTP servers
+
+@enduml

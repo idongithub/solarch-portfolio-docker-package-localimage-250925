@@ -1,0 +1,47 @@
+@startuml C4_Container
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+title Container Diagram - Kamal Singh Portfolio System
+
+Person(visitor, "Portfolio Visitor", "Potential clients viewing portfolio")
+Person(kamal, "Kamal Singh", "Portfolio owner receiving notifications")
+System_Ext(smtp_server, "SMTP Server", "Gmail/Outlook/Yahoo")
+
+System_Boundary(portfolio_system, "Kamal Singh Portfolio System") {
+    Container(nginx, "Nginx Reverse Proxy", "Nginx 1.24", "Web server, SSL termination, static file serving, API routing with rate limiting")
+    
+    Container(frontend, "React Frontend", "React 19, Tailwind CSS, Shadcn/UI", "Portfolio website with responsive design, project showcase, contact form")
+    
+    Container(backend, "FastAPI Backend", "Python 3.11, FastAPI, Uvicorn", "REST API server with email service, contact form processing, health checks")
+    
+    Container(database, "MongoDB Database", "MongoDB 6.0", "Document database storing contact submissions, portfolio content, application logs")
+    
+    Container(email_service, "Email Service", "Python SMTP, Jinja2", "Email sending service with HTML templates, auto-replies, rate limiting")
+}
+
+Container_Ext(docker_host, "Docker Host", "Docker Engine, Supervisor", "Container orchestration with health checks, log management, service monitoring")
+
+Rel(visitor, nginx, "Views portfolio, submits forms", "HTTPS:443, HTTP:80")
+Rel(nginx, frontend, "Serves React app", "HTTP:3000")
+Rel(nginx, backend, "Proxies API requests", "HTTP:8001")
+Rel(frontend, backend, "API calls", "HTTP/JSON")
+Rel(backend, database, "Stores/retrieves data", "MongoDB Protocol:27017")
+Rel(backend, email_service, "Triggers email sending", "Python module")
+Rel(email_service, smtp_server, "Sends emails", "SMTP:587/TLS")
+Rel(email_service, kamal, "Sends notifications", "Email")
+Rel(docker_host, nginx, "Manages process", "Supervisor")
+Rel(docker_host, frontend, "Builds & serves", "Static files")
+Rel(docker_host, backend, "Manages process", "Supervisor")
+Rel(docker_host, database, "Manages process", "Supervisor")
+
+note right of nginx : Features:\n- SSL/TLS termination\n- Rate limiting (10 req/min API, 3 req/min contact)\n- Security headers (HSTS, CSP, XSS protection)\n- Gzip compression\n- Static asset caching
+
+note right of frontend : Technologies:\n- React 19 with hooks\n- React Router DOM\n- Tailwind CSS for styling\n- Shadcn/UI components\n- Axios for API calls\n- Professional corporate theme
+
+note right of backend : Features:\n- FastAPI with async support\n- Pydantic data validation\n- JWT security (optional)\n- Background task processing\n- Comprehensive error handling\n- Rate limiting middleware
+
+note right of database : Collections:\n- contacts (form submissions)\n- status_checks (health monitoring)\n- portfolio_content (metadata)\n- projects (featured projects)\n- testimonials (client feedback)
+
+note right of email_service : Capabilities:\n- HTML email templates\n- Auto-reply functionality\n- Multiple SMTP providers\n- Rate limiting (10 emails/hour)\n- Template personalization\n- Error handling & retry logic
+
+@enduml

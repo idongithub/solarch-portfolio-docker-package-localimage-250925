@@ -1,0 +1,146 @@
+@startuml DataFlow
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Context.puml
+
+title Data Flow Diagram - Contact Form Processing
+
+participant "Visitor" as visitor
+participant "React Frontend" as frontend
+participant "Nginx Proxy" as nginx
+participant "FastAPI Backend" as backend
+participant "Email Service" as email
+participant "MongoDB" as db
+participant "SMTP Server" as smtp
+participant "Kamal Singh" as kamal
+
+== Contact Form Submission ==
+
+visitor -> frontend: 1. Fill contact form\n(name, email, company, role,\nproject type, budget, timeline, message)
+
+frontend -> frontend: 2. Client-side validation\n(required fields, email format,\nmessage length, character counting)
+
+frontend -> nginx: 3. POST /api/contact\n(validated form data, JSON)
+
+nginx -> nginx: 4. Rate limiting check\n(3 requests/minute for contact endpoint)
+
+nginx -> backend: 5. Proxy to backend\n(HTTP request with headers)
+
+backend -> backend: 6. Server-side validation\n(Pydantic models, data sanitization)
+
+backend -> db: 7. Store contact submission\n(contacts collection with metadata)
+
+db -> backend: 8. Confirm storage\n(document ID, timestamp)
+
+backend -> email: 9. Queue background email task\n(contact data, async processing)
+
+backend -> frontend: 10. Success response\n(submission ID, timestamp)
+
+frontend -> visitor: 11. Success notification\n(toast message, form reset)
+
+== Background Email Processing ==
+
+email -> email: 12. Generate HTML email template\n(professional branding, contact details)
+
+email -> smtp: 13. Send notification to Kamal\n(HTML + text versions)
+
+smtp -> kamal: 14. Deliver notification email\n(contact details, inquiry type)
+
+email -> smtp: 15. Send auto-reply to visitor\n(confirmation, response timeline)
+
+smtp -> visitor: 16. Deliver auto-reply\n(professional acknowledgment)
+
+== Error Handling Flows ==
+
+alt Rate Limit Exceeded
+    nginx -> frontend: Rate limit error (429)
+    frontend -> visitor: "Too many requests" message
+end
+
+alt Validation Error
+    backend -> frontend: Validation error (400)
+    frontend -> visitor: Field-specific error messages
+end
+
+alt Email Service Error
+    email -> backend: Email failure notification
+    backend -> db: Log email failure
+    backend -> frontend: Success (form saved, email failed)
+    frontend -> visitor: "Form submitted, email delayed"
+end
+
+alt Database Error
+    db -> backend: Connection/write error
+    backend -> frontend: Server error (500)
+    frontend -> visitor: "Please try again later"
+end
+
+== Health Check Flow ==
+
+nginx -> backend: GET /api/health
+backend -> db: Test database connection
+backend -> email: Check email service config
+backend -> nginx: Health status (services status)
+nginx -> nginx: Log health check result
+
+note right of frontend
+**Form Fields:**
+• Name (required, 2-100 chars)
+• Email (required, valid format)
+• Company (optional)
+• Role (optional)
+• Project Type (dropdown selection)
+• Budget Range (dropdown selection)  
+• Timeline (dropdown selection)
+• Message (required, 10-2000 chars)
+
+**Validation Rules:**
+• Real-time character counting
+• Email format validation
+• Required field checking
+• Message length limits
+• Professional project categories
+end note
+
+note right of backend
+**API Features:**
+• /api/contact (POST) - Form submission
+• /api/health (GET) - Health check
+• /api/status (GET/POST) - Status logging
+• /api/test-email (POST) - Email testing
+
+**Security:**
+• Rate limiting (API: 10/min, Contact: 3/min)
+• Input validation & sanitization
+• CORS configuration
+• Error handling & logging
+end note
+
+note right of email
+**Email Templates:**
+• HTML: Professional corporate design
+• Text: Plain text fallback
+• Auto-reply: Confirmation to visitor
+• Notification: Details to Kamal Singh
+
+**Features:**
+• Jinja2 template rendering
+• Rate limiting (10 emails/hour)
+• Multiple SMTP provider support
+• Retry logic for failures
+end note
+
+note right of db
+**MongoDB Collections:**
+• contacts: Form submissions
+• status_checks: Health monitoring
+• portfolio_content: Site metadata
+• projects: Featured projects
+• testimonials: Client feedback
+
+**Features:**
+• Document validation
+• Performance indexes
+• Connection pooling
+• Async operations
+end note
+
+@enduml

@@ -1,0 +1,63 @@
+@startuml C4_Component_Backend
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+title Component Diagram - FastAPI Backend Container
+
+Container(frontend, "React Frontend", "React 19", "Portfolio website")
+Container(database, "MongoDB", "MongoDB 6.0", "Document database")
+System_Ext(smtp_server, "SMTP Server", "Email provider")
+
+Container_Boundary(backend, "FastAPI Backend Container") {
+    Component(api_router, "API Router", "FastAPI APIRouter", "Main API routing with /api prefix, CORS middleware, request/response handling")
+    
+    Component(contact_controller, "Contact Controller", "FastAPI Endpoint", "Handles contact form submissions, validation, background task queuing")
+    
+    Component(health_controller, "Health Controller", "FastAPI Endpoint", "System health checks, service status monitoring, database connectivity")
+    
+    Component(status_controller, "Status Controller", "FastAPI Endpoint", "Status check logging, system monitoring, admin endpoints")
+    
+    Component(email_service, "Email Service", "Python Class", "SMTP email handling, template rendering, rate limiting, error handling")
+    
+    Component(contact_service, "Contact Service", "Python Service", "Contact form processing, data validation, database operations")
+    
+    Component(db_client, "Database Client", "Motor AsyncIOMotorClient", "MongoDB connection management, async operations, connection pooling")
+    
+    Component(email_templates, "Email Templates", "Jinja2 Templates", "HTML email templates, text fallbacks, personalization, professional branding")
+    
+    Component(validation_models, "Pydantic Models", "Pydantic BaseModel", "Request/response validation, data serialization, type checking")
+    
+    Component(middleware, "Middleware Stack", "FastAPI Middleware", "CORS, authentication, rate limiting, error handling, logging")
+    
+    Component(background_tasks, "Background Tasks", "FastAPI BackgroundTasks", "Async email sending, cleanup tasks, non-blocking operations")
+}
+
+Rel(frontend, api_router, "HTTP requests", "JSON/REST")
+Rel(api_router, middleware, "Request processing", "Python")
+Rel(middleware, contact_controller, "Validated requests", "Python")
+Rel(middleware, health_controller, "Health requests", "Python")
+Rel(middleware, status_controller, "Status requests", "Python")
+
+Rel(contact_controller, validation_models, "Data validation", "Pydantic")
+Rel(contact_controller, contact_service, "Process contact", "Python")
+Rel(contact_controller, background_tasks, "Queue email", "Async")
+
+Rel(contact_service, db_client, "Store contact", "MongoDB")
+Rel(background_tasks, email_service, "Send emails", "Python")
+
+Rel(email_service, email_templates, "Render templates", "Jinja2")
+Rel(email_service, smtp_server, "Send emails", "SMTP/TLS")
+
+Rel(health_controller, db_client, "Check DB health", "MongoDB")
+Rel(status_controller, db_client, "Log status", "MongoDB")
+
+Rel(db_client, database, "Database operations", "MongoDB Protocol")
+
+note right of api_router : FastAPI Features:\n- Automatic OpenAPI docs\n- Request/response validation\n- Async/await support\n- Dependency injection\n- Exception handling
+
+note right of email_service : Email Features:\n- Rate limiting (10/hour)\n- Template personalization\n- Auto-reply generation\n- Multiple SMTP providers\n- HTML + text formats\n- Error handling & retry
+
+note right of validation_models : Models:\n- ContactForm (input validation)\n- ContactFormCreate (API model)\n- StatusCheck (monitoring)\n- EmailResponse (response model)
+
+note right of db_client : MongoDB Features:\n- Async operations\n- Connection pooling\n- Document validation\n- Index optimization\n- Error handling
+
+@enduml
