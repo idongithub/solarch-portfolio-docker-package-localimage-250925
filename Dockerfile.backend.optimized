@@ -1,0 +1,94 @@
+# Optimized Backend Dockerfile for FastAPI service - Minimal final image
+FROM python:3.11-alpine as build-stage
+
+# Install build dependencies including C++ compiler for NumPy
+RUN apk add --no-cache --virtual .build-deps \
+    gcc \
+    g++ \
+    musl-dev \
+    linux-headers \
+    curl \
+    gfortran \
+    openblas-dev \
+    lapack-dev
+
+# Set working directory
+WORKDIR /app
+
+# Copy requirements first for better caching
+COPY backend/requirements.txt .
+
+# Install Python dependencies globally for easier access
+RUN pip install --no-cache-dir -r requirements.txt && \
+    apk del .build-deps
+
+# Production stage with minimal base
+FROM python:3.11-alpine as production
+
+# Install runtime dependencies for NumPy and FastAPI
+RUN apk add --no-cache curl openblas lapack && \
+    rm -rf /var/cache/apk/* /tmp/* /var/tmp/*
+
+# Copy Python packages from build stage 
+COPY --from=build-stage /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
+COPY --from=build-stage /usr/local/bin /usr/local/bin
+
+# Set working directory
+WORKDIR /app
+
+# Copy backend source code only
+COPY backend/ .
+
+# Clean up unnecessary files in single layer
+RUN find . -name "*.pyc" -delete && \
+    find . -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true && \
+    find . -name "*.pyo" -delete && \
+    rm -rf .git .gitignore *.md tests/ docs/ examples/ && \
+    mkdir -p /app/logs
+
+# Create non-root user for security
+RUN addgroup -g 1001 -S appuser && \
+    adduser -S -D -H -u 1001 -h /app -s /sbin/nologin -G appuser -g appuser appuser && \
+    chown -R appuser:appuser /app
+
+# Ensure Python paths are correct
+ENV PATH=/usr/local/bin:$PATH \
+    PYTHONPATH=/usr/local/lib/python3.11/site-packages:$PYTHONPATH
+
+# Set optimized default environment variables
+ENV MONGO_URL=mongodb://localhost:27017 \
+    SMTP_SERVER=smtp.gmail.com \
+    SMTP_PORT=587 \
+    SMTP_USE_TLS=true \
+    SMTP_USE_SSL=false \
+    SMTP_STARTTLS=true \
+    SMTP_TIMEOUT=30 \
+    SMTP_RETRIES=3 \
+    SMTP_DEBUG=false \
+    SMTP_VERIFY_CERT=true \
+    SMTP_AUTH=true \
+    SMTP_USERNAME="" \
+    SMTP_PASSWORD="" \
+    FROM_EMAIL="" \
+    TO_EMAIL=kamal.singh@architecturesolutions.co.uk \
+    EMAIL_SUBJECT_PREFIX="[Portfolio Contact]" \
+    SECRET_KEY=kamal-singh-portfolio-production-2024 \
+    EMAIL_RATE_LIMIT_WINDOW=3600 \
+    EMAIL_RATE_LIMIT_MAX=10 \
+    EMAIL_COOLDOWN_PERIOD=60 \
+    CORS_ORIGINS="http://localhost:3000,http://localhost:8080,https://localhost:8443" \
+    LOG_LEVEL=INFO \
+    ENVIRONMENT=production \
+    PYTHONPATH=/app \
+    PYTHONUNBUFFERED=1
+
+EXPOSE 8001
+
+# Optimized health check
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+    CMD curl -f --connect-timeout 5 --max-time 10 http://localhost:8001/api/health || exit 1
+
+USER appuser
+
+# Use python -m uvicorn for better module resolution
+CMD ["python", "-m", "uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8001", "--workers", "1"]
