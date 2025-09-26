@@ -1,0 +1,168 @@
+# Dockerfile without MongoDB - Frontend + Backend only
+# Fixes illegal instruction error with MongoDB
+
+FROM ubuntu:22.04
+
+# Set environment variables
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    NODE_VERSION=18
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    wget \
+    gnupg \
+    ca-certificates \
+    supervisor \
+    nginx \
+    openssl \
+    netcat-openbsd \
+    build-essential \
+    python3.11 \
+    python3.11-venv \
+    python3.11-dev \
+    python3-pip \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Node.js
+RUN curl -fsSL https://deb.nodesource.com/setup_${NODE_VERSION}.x | bash - \
+    && apt-get install -y nodejs \
+    && npm install -g yarn
+
+# Create application directory
+WORKDIR /app
+
+# Copy and build frontend
+COPY ./frontend/package.json ./frontend/yarn.lock ./frontend/
+WORKDIR /app/frontend
+RUN yarn install --frozen-lockfile --network-timeout 600000
+COPY ./frontend ./
+RUN yarn build
+
+# Set up backend
+WORKDIR /app
+COPY ./backend ./backend
+RUN python3.11 -m venv ./backend/venv \
+    && ./backend/venv/bin/pip install --upgrade pip setuptools wheel \
+    && ./backend/venv/bin/pip install --no-cache-dir -r ./backend/requirements.txt
+
+# Configure Nginx
+COPY ./nginx-simple.conf /etc/nginx/sites-available/default
+RUN rm -f /etc/nginx/sites-enabled/default \
+    && ln -s /etc/nginx/sites-available/default /etc/nginx/sites-enabled/ \
+    && rm -rf /var/www/html/* \
+    && cp -r ./frontend/build/* /var/www/html/
+
+# Test Nginx configuration
+RUN nginx -t
+
+# Create supervisor configuration for services without MongoDB
+RUN mkdir -p /etc/supervisor/conf.d
+COPY <<EOF /etc/supervisor/conf.d/portfolio-no-mongo.conf
+[supervisord]
+nodaemon=true
+user=root
+logfile=/var/log/supervisor/supervisord.log
+pidfile=/var/run/supervisord.pid
+
+[program:backend]
+command=/app/backend/venv/bin/python server_no_mongo.py
+directory=/app/backend
+autostart=true
+autorestart=true
+stderr_logfile=/var/log/supervisor/backend.err.log
+stdout_logfile=/var/log/supervisor/backend.out.log
+environment=PATH="/app/backend/venv/bin:%(ENV_PATH)s"
+
+[program:nginx]
+command=/usr/sbin/nginx -g "daemon off;"
+autostart=true
+autorestart=true
+stderr_logfile=/var/log/supervisor/nginx.err.log
+stdout_logfile=/var/log/supervisor/nginx.out.log
+EOF
+
+# Create startup script without MongoDB
+RUN mkdir -p /var/log/supervisor /var/log/nginx /app/logs /etc/ssl/certs /etc/ssl/private
+COPY <<'EOF' /app/startup-no-mongo.sh
+#!/bin/bash
+set -e
+
+echo "🚀 Starting Portfolio (No MongoDB)"
+
+# Create backend .env
+cat > /app/backend/.env << ENVEOF
+HOST=0.0.0.0
+PORT=8001
+ENVIRONMENT=production
+DEBUG=False
+
+# Email Configuration
+SMTP_SERVER=${SMTP_SERVER:-smtp.gmail.com}
+SMTP_PORT=${SMTP_PORT:-587}
+SMTP_USE_TLS=${SMTP_USE_TLS:-true}
+SMTP_USERNAME=${SMTP_USERNAME}
+SMTP_PASSWORD=${SMTP_PASSWORD}
+FROM_EMAIL=${FROM_EMAIL}
+TO_EMAIL=${TO_EMAIL:-kamal.singh@architecturesolutions.co.uk}
+
+# CORS
+CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000,http://localhost:80,http://localhost}
+
+# Website URL
+WEBSITE_URL=${WEBSITE_URL:-http://localhost}
+ENVEOF
+
+echo "✅ Configuration complete"
+
+# Start supervisor
+exec /usr/bin/supervisord -n -c /etc/supervisor/conf.d/portfolio-no-mongo.conf
+EOF
+
+RUN chmod +x /app/startup-no-mongo.sh
+
+# Create health check
+COPY <<'EOF' /app/healthcheck-no-mongo.sh
+#!/bin/bash
+# Health check without MongoDB dependency
+
+# Check if nginx is responding
+if ! curl -f -s http://localhost/health >/dev/null 2>&1; then
+    exit 1
+fi
+
+# Check if backend is responding  
+if ! curl -f -s http://localhost:8001/health >/dev/null 2>&1; then
+    exit 1
+fi
+
+exit 0
+EOF
+
+RUN chmod +x /app/healthcheck-no-mongo.sh
+
+# Set permissions
+RUN chown -R www-data:www-data /var/www/html \
+    && chmod -R 755 /var/www/html
+
+# Expose ports
+EXPOSE 80 8001
+
+# Environment variables
+ENV SMTP_SERVER=smtp.gmail.com \
+    SMTP_PORT=587 \
+    SMTP_USE_TLS=true \
+    TO_EMAIL=kamal.singh@architecturesolutions.co.uk \
+    CORS_ORIGINS=http://localhost:3000,http://localhost:80,http://localhost \
+    WEBSITE_URL=http://localhost \
+    ENVIRONMENT=production \
+    DEBUG=False
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD /app/healthcheck-no-mongo.sh
+
+# Use startup script
+ENTRYPOINT ["/app/startup-no-mongo.sh"]

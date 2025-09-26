@@ -1,0 +1,37 @@
+# Simplified Dockerfile for testing and debugging
+# Single-stage build focusing on the frontend only
+
+FROM node:18-alpine
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies
+RUN apk add --no-cache \
+    curl \
+    git
+
+# Copy package files
+COPY frontend/package.json frontend/yarn.lock ./
+
+# Install dependencies
+RUN yarn install --frozen-lockfile --network-timeout 300000
+
+# Copy source code
+COPY frontend/ .
+
+# Build the application
+RUN yarn build
+
+# Install serve for static file serving
+RUN npm install -g serve
+
+# Expose port
+EXPOSE 3000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD curl -f http://localhost:3000 || exit 1
+
+# Start the application
+CMD ["serve", "-s", "build", "-l", "3000"]

@@ -1,0 +1,121 @@
+# Reliable Dockerfile for Kamal Singh Portfolio
+# Simplified configuration with better error handling
+
+FROM ubuntu:22.04
+
+# Set environment variables
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    NODE_VERSION=18 \
+    MONGO_VERSION=6.0
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    # System essentials
+    curl \
+    wget \
+    gnupg \
+    lsb-release \
+    software-properties-common \
+    supervisor \
+    nginx \
+    openssl \
+    netcat-openbsd \
+    # Build tools
+    build-essential \
+    python3.11 \
+    python3.11-venv \
+    python3.11-dev \
+    python3-pip \
+    # MongoDB dependencies
+    ca-certificates \
+    # Cleanup
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Node.js
+RUN curl -fsSL https://deb.nodesource.com/setup_${NODE_VERSION}.x | bash - \
+    && apt-get install -y nodejs \
+    && npm install -g yarn
+
+# Install MongoDB
+RUN wget -qO - https://www.mongodb.org/static/pgp/server-6.0.asc | apt-key add - \
+    && echo "deb [ arch=amd64,arm64 ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/6.0 multiverse" | tee /etc/apt/sources.list.d/mongodb-org-6.0.list \
+    && apt-get update \
+    && apt-get install -y mongodb-org \
+    && mkdir -p /data/db \
+    && chown -R mongodb:mongodb /data/db \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create application directory
+WORKDIR /app
+
+# Copy application files
+COPY . .
+
+# Set up Python environment
+RUN python3.11 -m venv /app/backend/venv \
+    && /app/backend/venv/bin/pip install --upgrade pip setuptools wheel \
+    && /app/backend/venv/bin/pip install --no-cache-dir -r /app/backend/requirements.txt
+
+# Build frontend
+WORKDIR /app/frontend
+RUN yarn install --frozen-lockfile --network-timeout 300000 \
+    && yarn build --max_old_space_size=4096
+
+# Configure Nginx with simple configuration
+COPY nginx-simple.conf /etc/nginx/sites-available/default
+RUN rm -f /etc/nginx/sites-enabled/default \
+    && ln -s /etc/nginx/sites-available/default /etc/nginx/sites-enabled/ \
+    && rm -f /var/www/html/* \
+    && cp -r /app/frontend/build/* /var/www/html/ \
+    && nginx -t
+
+# Create supervisor configuration
+COPY supervisord-all-in-one.conf /etc/supervisor/conf.d/portfolio.conf
+
+# Create startup script
+COPY startup-all-in-one.sh /app/startup.sh
+RUN chmod +x /app/startup.sh
+
+# Create health check script
+COPY healthcheck-all-in-one.sh /app/healthcheck.sh
+RUN chmod +x /app/healthcheck.sh
+
+# Create directories and set permissions
+RUN mkdir -p /var/log/supervisor /var/log/nginx /var/log/mongodb /app/logs /etc/ssl/certs /etc/ssl/private \
+    && chown -R www-data:www-data /var/www/html \
+    && chmod -R 755 /var/www/html
+
+# Set working directory back to app
+WORKDIR /app
+
+# Expose ports (HTTP only for reliable startup)
+EXPOSE 80 3000 8001 27017
+
+# Environment variables with defaults
+ENV MONGO_URL=mongodb://localhost:27017 \
+    DB_NAME=portfolio_db \
+    SMTP_SERVER=smtp.gmail.com \
+    SMTP_PORT=587 \
+    SMTP_USE_TLS=true \
+    SMTP_USERNAME= \
+    SMTP_PASSWORD= \
+    FROM_EMAIL= \
+    TO_EMAIL=kamal.singh@architecturesolutions.co.uk \
+    EMAIL_RATE_LIMIT_WINDOW=3600 \
+    EMAIL_RATE_LIMIT_MAX=10 \
+    SECRET_KEY=kamal-singh-portfolio-production-2024 \
+    ADMIN_TOKEN=admin_token_2024 \
+    CORS_ORIGINS=http://localhost:3000,http://localhost:80,http://localhost \
+    WEBSITE_URL=http://localhost \
+    HTTP_PORT=80 \
+    ENVIRONMENT=production \
+    DEBUG=False
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD /app/healthcheck.sh
+
+# Use startup script as entrypoint
+ENTRYPOINT ["/app/startup.sh"]
