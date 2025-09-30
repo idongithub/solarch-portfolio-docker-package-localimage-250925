@@ -14,10 +14,13 @@ graph TB
         U3[Domain Users<br/>portfolio.architecturesolutions.co.uk]
     end
     
-    subgraph "Security Detection & Routing Layer"
-        S1[Auto-Detection Logic<br/>IP vs Domain Analysis]
-        S2[Local Math Captcha<br/>Privacy-First Security]
-        S3[Google reCAPTCHA v3<br/>Enterprise Security]
+    subgraph "Enhanced Security Layer"
+        S1[Origin Validation<br/>Whitelist Enforcement]
+        S2[Browser Detection<br/>User-Agent Analysis]
+        S3[API Authentication<br/>Credential Validation]
+        S4[Auto-Detection Logic<br/>IP vs Domain Analysis]
+        S5[Local Math Captcha<br/>Privacy-First Security]
+        S6[Google reCAPTCHA v3<br/>Enterprise Security]
     end
     
     subgraph "API Gateway & Proxy Layer"
@@ -34,14 +37,23 @@ graph TB
     
     subgraph "Data & Storage Layer"
         D1[MongoDB Database<br/>Contact & Analytics Data]
-        D2[Volume Persistence<br/>Data Retention]
-        D3[Mongo Express GUI<br/>Database Administration]
+        D2[Redis Cache<br/>Sessions & Rate Limiting]
+        D3[Volume Persistence<br/>Data Retention]
+        D4[Mongo Express GUI<br/>Database Administration]
+    end
+    
+    subgraph "Analytics & Tracking"
+        T1[Google Analytics<br/>User Behavior Tracking]
+        T2[Matomo Analytics<br/>Privacy-First Tracking]
+        T3[Frontend Integration<br/>index.html Tracking Scripts]
     end
     
     subgraph "External Services"
         E1[IONOS SMTP Server<br/>Email Delivery]
         E2[Google reCAPTCHA API<br/>Token Verification]
         E3[DNS Provider<br/>Domain Resolution]
+        E4[Google Analytics API<br/>Measurement ID: G-B2W705K4SN]
+        E5[Matomo Instance<br/>matomo.architecturesolutions.co.uk]
     end
     
     subgraph "Monitoring & Observability"
@@ -51,10 +63,10 @@ graph TB
         M4[Promtail<br/>Log Shipping]
     end
     
-    %% User Flow Connections
-    U1 --> S1 --> S2 --> G1 --> A1
-    U2 --> S1 --> S2 --> G2 --> A1
-    U3 --> S1 --> S3 --> G3 --> A1
+    %% Enhanced Security Flow Connections
+    U1 --> S1 --> S2 --> S3 --> S4 --> S5 --> G1 --> A1
+    U2 --> S1 --> S2 --> S3 --> S4 --> S5 --> G2 --> A1
+    U3 --> S1 --> S2 --> S3 --> S4 --> S6 --> G3 --> A1
     
     %% Application Flow
     A1 --> A2 --> D1
@@ -441,6 +453,48 @@ graph LR
     style D fill:#e1f5fe
 ```
 
+## 🔐 **Enhanced Multi-Layer Security Architecture**
+
+### **Security Layer Breakdown**
+
+1. **Origin Validation Layer (S1)**:
+   - Validates request origin against whitelist
+   - Prevents unauthorized domain access
+   - Returns 403 Forbidden for invalid origins
+
+2. **Browser Detection Layer (S2)**:
+   - Analyzes User-Agent headers
+   - Differentiates browser vs API requests
+   - Enables appropriate authentication flow
+
+3. **API Authentication Layer (S3)**:
+   - Validates API credentials for non-browser requests
+   - Requires X-API-Key and X-API-Secret headers
+   - Returns 401 Unauthorized for invalid/missing credentials
+
+4. **Access Method Detection (S4)**:
+   - Determines IP vs Domain access method
+   - Routes to appropriate CAPTCHA system
+   - Maintains backward compatibility
+
+5. **CAPTCHA Verification (S5/S6)**:
+   - S5: Local math CAPTCHA for IP access
+   - S6: Google reCAPTCHA v3 for domain access
+   - Prevents automated abuse
+
+### **Security Configuration**
+
+```env
+# API Authentication
+API_KEY=portfolio-api-key-secure-2024
+API_SECRET=portfolio-api-secret-secure-2024
+API_AUTH_ENABLED=true
+
+# CAPTCHA Configuration  
+RECAPTCHA_SECRET_KEY=6LcgftMrAAAAANYLqKcqycaZrYzEhpVBmQNeacsm
+RECAPTCHA_SITE_KEY=6LcgftMrAAAAaPJRuWA4mQgstPWYoIXoPM4PBjMM
+```
+
 ## 🔒 **Security Architecture Layers**
 
 ### **Layer 1: Network Security**
@@ -509,12 +563,48 @@ services:
   frontend-https:    # React HTTPS frontend  
   backend:           # FastAPI application
   mongodb:           # Database service
+  redis:             # Cache & session store
   mongo-express:     # Database GUI
   prometheus:        # Metrics collection
   grafana:          # Monitoring dashboards
   loki:             # Log aggregation
   promtail:         # Log shipping
 ```
+
+### **Technology Stack**
+
+#### **Frontend Layer**
+- **Framework**: React 18+ with functional components
+- **Routing**: React Router v6
+- **Styling**: Tailwind CSS + Custom CSS
+- **Analytics Integration**: 
+  - Google Analytics (gtag.js) - Measurement ID: G-B2W705K4SN
+  - Matomo Analytics - Container: Bx60SjUR
+  - **Integration Method**: Direct script injection in `/public/index.html`
+- **Build Tool**: Create React App
+- **HTTP Server**: Nginx with security headers
+
+#### **Backend Layer** 
+- **Framework**: FastAPI (Python 3.9+)
+- **Authentication**: JWT + API Key validation
+- **Rate Limiting**: SlowAPI middleware
+- **Email Service**: IONOS SMTP integration
+- **CORS**: Configurable origin whitelist
+
+#### **Data Layer**
+- **Primary Database**: MongoDB 6.0+ (Document storage)
+- **Cache Layer**: Redis 7-alpine 
+  - **Usage**: Session storage, rate limiting counters, API response caching
+  - **Configuration**: Password protected, persistent storage, memory optimization
+- **Persistence**: Docker volumes for data retention
+
+#### **Security & Analytics**
+- **Captcha Systems**: 
+  - Local Math Captcha (privacy-first)
+  - Google reCAPTCHA v3 (enterprise security)
+- **API Security**: Origin validation + credential verification  
+- **Analytics**: Dual tracking with Google Analytics + Matomo
+- **SSL/TLS**: Self-signed certificates for local HTTPS
 
 ### **Volume Management**
 - **MongoDB Data**: Persistent volume for database
